@@ -1,0 +1,18 @@
+body {
+    background-color: red;
+    .example{
+        color: #ffffff;
+        font-size: 20px;
+    }
+    .my-name{
+        width: 100%;
+        height: 100px;
+        span {
+            font-size: 18px;
+            color: brown;
+            text-align: center;
+            display: inline-block;
+            width: 100%;
+        }
+    }
+}
