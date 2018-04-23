@@ -193,7 +193,7 @@ PS: 关于`loader`的详细说明可以参考`webpack3.x`的学习介绍，上�
 包含以下几个方面：
 1. 针对`CSS`和`JS`的`TreeShaking`来减少无用代码，针对`JS`需要对已有的`uglifyjs`进行一些自定义的配置(生产环境配置)
 2. 新的公共代码抽取工具(`optimization.SplitChunksPlugin`)提取重用代码，减小打包文件。（代替`commonchunkplugin`）
-3. 使用`HappyPack`进行`javascript`的多进程打包操作，提升打包速度
+3. 使用`HappyPack`进行`javascript`的多进程打包操作，提升打包速度，并增加打包时间显示
 4. 创建一个`webpack.dll.config.js`文件打包常用类库到dll中，使得基础模块不会重复被打包，而是去动态连接库里获取，代替上一节使用的`vendor`。(`webpack4.x`新特性)
 5. 加入作用域提升(前一版本的特性)和模块热替换，后者需要在项目中增加一些配置，不过大型框架把这块都封装好了。(开发环境配置)
 
@@ -206,12 +206,175 @@ PS: 关于`loader`的详细说明可以参考`webpack3.x`的学习介绍，上�
 npm i purify-css purifycss-webpack -D // 用于css的tree-shaking
 npm i webpack-parallel-uglify-plugin -D // 用于js的tree-shaking
 npm i happypack@next -D //用于多进程打包js
+npm i progress-bar-webpack-plugin -D //用于显示打包时间和进程
 ```
 
-`webpack.config.js`配置文件(开发环境 + 生产环境)具体内容，但用于实际项目中建议分开两个文件，配置更加清楚：
+`TreeShaking`需要增加的配置代码:
+
+```javascript
+/*最上面要增加的声明变量*/
+const glob = require('glob')
+const PurifyCSSPlugin = require('purifycss-webpack')
+const WebpackParallelUglifyPlugin = require('webpack-parallel-uglify-plugin')
+
+/*在`plugins`配置项中需要增加的两个插件设置*/
+new PurifyCSSPlugin({
+    paths: glob.sync(path.join(__dirname, 'src/*.html'))
+}),
+new WebpackParallelUglifyPlugin({
+    uglifyJS: {
+        output: {
+            beautify: false, //不需要格式化
+            comments: false //不保留注释
+        },
+        compress: {
+            warnings: false, // 在UglifyJs删除没有用到的代码时不输出警告
+            drop_console: true, // 删除所有的 `console` 语句，可以兼容ie浏览器
+            collapse_vars: true, // 内嵌定义了但是只用到一次的变量
+            reduce_vars: true // 提取出出现多次但是没有定义成变量去引用的静态值
+        }
+    }
+}),
+```
+
+打包`DLL`第三方类库的配置项：
+
+1. `webpack.dll.config.js`配置文件具体内容：
+
+```js
+const path = require('path')
+const webpack = require('webpack')
+/**
+ * 尽量减小搜索范围
+ * target: '_dll_[name]' 指定导出变量名字
+ */
+module.exports = {
+    entry: {
+        vendor: ['jquery', 'lodash']
+    },
+    output: {
+        path: path.join(__dirname, 'dist'),
+        filename: '[name].dll.js',
+        library: '_dll_[name]' // 全局变量名，其他模块会从此变量上获取里面模块
+    },
+    // manifest是描述文件
+    plugins: [
+        new webpack.DllPlugin({
+            name: '_dll_[name]',
+            path: path.join(__dirname, 'dist', 'manifest.json')
+        })
+    ]
+}
+```
+
+2. 在`webpack.config.js`中增加的配置项：
+
+```javascript
+/*找到上一步生成的`manifest.json`文件配置到`plugins`里面*/
+new webpack.DllReferencePlugin({
+    manifest: require(path.join(__dirname, 'dist', 'manifest.json')),
+}),
+```
+
+多文件入口的公用代码提取插件配置：
+
+```javascript
+/*webpack4.x的最新优化配置项，用于提取公共代码，跟`entry`是同一层级*/
+optimization: {
+    splitChunks: {
+        cacheGroups: {
+            commons: {
+                chunks: "initial",
+                name: "common",
+                minChunks: 2,
+                maxInitialRequests: 5,
+                minSize: 0
+            }
+        }
+    }
+}
+
+/*针对生成HTML的插件，需增加common，也去掉上一节加的vendor*/
+new HtmlWebpackPlugin({
+    template: path.resolve(__dirname,'src','index.html'),
+    filename:'index.html',
+    chunks:['index', 'common'],
+    hash:true,//防止缓存
+    minify:{
+        removeAttributeQuotes:true//压缩 去掉引号
+    }
+}),
+new HtmlWebpackPlugin({
+    template: path.resolve(__dirname,'src','page.html'),
+    filename:'page.html',
+    chunks:['page', 'common'],
+    hash:true,//防止缓存
+    minify:{
+        removeAttributeQuotes:true//压缩 去掉引号
+    }
+}),
+```
+
+`HappyPack`的多进程打包处理：
+
+```javascript
+/*最上面要增加的声明变量*/
+const HappyPack = require('happypack')
+const os = require('os') //获取电脑的处理器有几个核心，作为配置传入
+const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
+
+/*在`module.rules`配置项中需要更改的`loader`设置*/
+{
+    test: /\.jsx?$/,
+    loader: 'happypack/loader?id=happy-babel-js',
+    include: [path.resolve('src')],
+    exclude: /node_modules/,
+},
+
+/*在`plugins`配置项中需要增加的插件设置*/
+new HappyPack({ //开启多线程打包
+    id: 'happy-babel-js',
+    loaders: ['babel-loader?cacheDirectory=true'],
+    threadPool: happyThreadPool
+}),
+new ProgressBarPlugin({
+    format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'
+})
+```
+
+要记住这种使用方法下一定要在根目录下加`.babelrc`文件来设置`babel`的打包配置
+
+作用域提升和热跟新增加的配置：
+
+```javascript
+/*最上面要增加的声明变量(作用域提升)*/
+const ModuleConcatenationPlugin = require('webpack/lib/optimize/ModuleConcatenationPlugin');
+
+/*在`devServer`配置项中需增加的设置*/
+hot:true
+
+/*在`plugins`配置项中需要增加的插件设置*/
+new ModuleConcatenationPlugin(), //开启作用域提升
+new webpack.HotModuleReplacementPlugin(), //模块热更新
+new webpack.NamedModulesPlugin(), //模块热更新
+```
+
+在业务代码中要做一些改动，一个比较`low`的例子为：
+
+```javascript
+if(module.hot) { //设置消息监听，重新执行函数
+    module.hot.accept('./hello.js', function() {
+        div.innerHTML = hello()
+    })
+}
+```
+
+`webpack.config.js`配置文件(开发环境 + 生产环境)具体内容，但用于实际项目中建议针对生产环境和开发环境分开两个文件，配置更加清楚：
 
 ```js
 const path = require('path');
+const chalk = require('chalk');
 const CopyWebpackPlugin = require('copy-webpack-plugin') // 复制静态资源的插件
 const CleanWebpackPlugin = require('clean-webpack-plugin') // 清空打包目录的插件
 const HtmlWebpackPlugin = require('html-webpack-plugin') // 生成html的插件
@@ -225,6 +388,7 @@ const WebpackParallelUglifyPlugin = require('webpack-parallel-uglify-plugin')
 const HappyPack = require('happypack')
 const os = require('os')
 const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 const ModuleConcatenationPlugin = require('webpack/lib/optimize/ModuleConcatenationPlugin');
 
@@ -274,11 +438,9 @@ module.exports = {
             },
             {
                 test: /\.jsx?$/,
-                use: {
-                    loader: 'happypack/loader?id=happy-babel-js',
-                    include: [resolve('src')],
-                    exclude: /node_modules/,
-                }
+                loader: 'happypack/loader?id=happy-babel-js',
+                include: [path.resolve('src')],
+                exclude: /node_modules/,
             },
             { //file-loader 解决css等文件中引入图片路径的问题
             // url-loader 当图片较小的时候会把图片BASE64编码，大于limit参数的时候还是使用file-loader 进行拷贝
@@ -334,7 +496,7 @@ module.exports = {
                 ignore: ['.*']
             }
         ]),
-        new CleanWebpackPlugin([path.join(__dirname, 'dist')]),
+        new CleanWebpackPlugin([path.join(__dirname, 'dist')]), //!!注意 这个后面在development中要删除！！
         new PurifyCSSPlugin({
             paths: glob.sync(path.join(__dirname, 'src/*.html'))
         }),
@@ -363,6 +525,9 @@ module.exports = {
         new ModuleConcatenationPlugin(), //开启作用域提升
         new webpack.HotModuleReplacementPlugin(), //HMR
         new webpack.NamedModulesPlugin(), // HMR
+        new ProgressBarPlugin({
+            format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'
+        })
     ]
     devtool: 'eval-source-map', // 指定加source-map的方式
     devServer: {
@@ -383,32 +548,8 @@ module.exports = {
 }
 ```
 
-`webpack.dll.config.js`配置文件具体内容：
 
-```js
-const path = require('path')
-const webpack = require('webpack')
-/**
- * 尽量减小搜索范围
- * target: '_dll_[name]' 指定导出变量名字
- */
-module.exports = {
-    entry: {
-        vendor: ['jquery', 'lodash']
-    },
-    output: {
-        path: path.join(__dirname, 'dist'),
-        filename: '[name].dll.js',
-        library: '_dll_[name]' // 全局变量名，其他模块会从此变量上获取里面模块
-    },
-    // manifest是描述文件
-    plugins: [
-        new webpack.DllPlugin({
-            name: '_dll_[name]',
-            path: path.join(__dirname, 'dist', 'manifest.json')
-        })
-    ]
-}
-```
+
+多说一句，就是实现JS打包的`treeShaking`还有一种方法是编译期分析依赖，利用uglifyjs来完成，这种情况需要保留ES6模块才能实现，因此在使用这一特性的仓库中，`.babelrc`文件的配置为:`"presets": [["env", { "modules": false }], "stage-0"]`，就是打包的时候不要转换模块引入方式的含义。
 
 接下来就可以运行`npm run build:dll && npm run dev`，看一下进阶配置后的成果啦，吼吼。

@@ -1,13 +1,15 @@
 const path = require('path');
-const CopyWebpackPlugin = require('copy-webpack-plugin') // 复制静态资源的插件
-const CleanWebpackPlugin = require('clean-webpack-plugin') // 清空打包目录的插件
+const chalk = require('chalk');
 const HtmlWebpackPlugin = require('html-webpack-plugin') // 生成html的插件
-const ExtractTextWebapckPlugin = require('extract-text-webpack-plugin') //CSS文件单独提取出来
+const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin') //CSS文件单独提取出来
 const webpack = require('webpack')
 
 const HappyPack = require('happypack')
 const os = require('os')
 const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
+
+const manifest = require('./dist/manifest.json')
 
 module.exports = {
     entry: {
@@ -28,38 +30,36 @@ module.exports = {
         rules:[
             {
                 test: /\.css$/,
-                use: ExtractTextWebapckPlugin.extract({
+                use: ExtractTextWebpackPlugin.extract({
                     fallback: 'style-loader',
                     use: ['css-loader', 'postcss-loader'] // 不再需要style-loader放到html文件内
                 }),
-                include: path.join(__dirname, 'src'), //限制范围，提高打包速度
+                include: [path.resolve('src')], //限制范围，提高打包速度
                 exclude: /node_modules/
             },
             {
                 test:/\.less$/,
-                use: ExtractTextWebapckPlugin.extract({
+                use: ExtractTextWebpackPlugin.extract({
                     fallback: 'style-loader',
                     use: ['css-loader', 'postcss-loader', 'less-loader']
                 }),
-                include: path.join(__dirname, 'src'),
+                include: [path.resolve('src')],
                 exclude: /node_modules/
             },
             {
                 test:/\.scss$/,
-                use: ExtractTextWebapckPlugin.extract({
+                include: [path.resolve('src')],
+                exclude: /node_modules/,
+                use: ExtractTextWebpackPlugin.extract({
                     fallback: 'style-loader',
-                    use:['css-loader', 'postcss-loader', 'sass-loader']
-                }),
-                include: path.join(__dirname, 'src'),
-                exclude: /node_modules/
+                    use: ['css-loader', 'postcss-loader', 'sass-loader']
+                })
             },
             {
                 test: /\.jsx?$/,
-                use: {
-                    loader: 'happypack/loader?id=happy-babel-js',
-                    include: [resolve('src')],
-                    exclude: /node_modules/,
-                }
+                loader: 'happypack/loader?id=happy-babel-js',
+                include: [path.resolve('src')],
+                exclude: /node_modules/,
             },
             { //file-loader 解决css等文件中引入图片路径的问题
             // url-loader 当图片较小的时候会把图片BASE64编码，大于limit参数的时候还是使用file-loader 进行拷贝
@@ -93,6 +93,7 @@ module.exports = {
             template: path.resolve(__dirname,'src','index.html'),
             filename:'index.html',
             chunks:['index', 'common'],
+            vendor: './vendor.dll.js',
             hash:true,//防止缓存
             minify:{
                 removeAttributeQuotes:true//压缩 去掉引号
@@ -102,6 +103,7 @@ module.exports = {
             template: path.resolve(__dirname,'src','page.html'),
             filename:'page.html',
             chunks:['page', 'common'],
+            vendor: './vendor.dll.js',
             hash:true,//防止缓存
             minify:{
                 removeAttributeQuotes:true//压缩 去掉引号
@@ -112,20 +114,15 @@ module.exports = {
             loaders: ['babel-loader?cacheDirectory=true'],
             threadPool: happyThreadPool
         }),
-        new ExtractTextWebapckPlugin('css/[name].[hash].css'),
-        new CopyWebpackPlugin([
-            {
-                from: path.resolve(__dirname, 'static'),
-                to: path.resolve(__dirname, 'dist/static'),
-                ignore: ['.*']
-            }
-        ]),
-        new CleanWebpackPlugin([path.join(__dirname, 'dist')]),
+        new ExtractTextWebpackPlugin('css/[name].[hash].css'),
         new webpack.DllReferencePlugin({
-            manifest: require(path.join(__dirname, 'dist', 'manifest.json')),
+            manifest: require('./dist/manifest.json')
         }),
         new webpack.HotModuleReplacementPlugin(), //HMR
         new webpack.NamedModulesPlugin(), // HMR
+        new ProgressBarPlugin({
+            format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'
+        })
     ],
     devtool: 'eval-source-map', // 指定加source-map的方式
     devServer: {

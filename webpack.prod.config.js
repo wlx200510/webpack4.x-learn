@@ -1,4 +1,5 @@
 const path = require('path');
+const chalk = require('chalk');
 const CopyWebpackPlugin = require('copy-webpack-plugin') // 复制静态资源的插件
 const CleanWebpackPlugin = require('clean-webpack-plugin') // 清空打包目录的插件
 const HtmlWebpackPlugin = require('html-webpack-plugin') // 生成html的插件
@@ -12,6 +13,7 @@ const WebpackParallelUglifyPlugin = require('webpack-parallel-uglify-plugin')
 const HappyPack = require('happypack')
 const os = require('os')
 const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 const ModuleConcatenationPlugin = require('webpack/lib/optimize/ModuleConcatenationPlugin');
 
@@ -61,11 +63,9 @@ module.exports = {
             },
             {
                 test: /\.jsx?$/,
-                use: {
-                    loader: 'happypack/loader?id=happy-babel-js',
-                    include: [resolve('src')],
-                    exclude: /node_modules/,
-                }
+                loader: 'happypack/loader?id=happy-babel-js',
+                include: [path.resolve('src')],
+                exclude: /node_modules/,
             },
             { //file-loader 解决css等文件中引入图片路径的问题
             // url-loader 当图片较小的时候会把图片BASE64编码，大于limit参数的时候还是使用file-loader 进行拷贝
@@ -99,6 +99,7 @@ module.exports = {
             template: path.resolve(__dirname,'src','index.html'),
             filename:'index.html',
             chunks:['index', 'common'],
+            vendor: './vendor.dll.js',
             hash:true,//防止缓存
             minify:{
                 removeAttributeQuotes:true//压缩 去掉引号
@@ -108,6 +109,7 @@ module.exports = {
             template: path.resolve(__dirname,'src','page.html'),
             filename:'page.html',
             chunks:['page', 'common'],
+            vendor: './vendor.dll.js',
             hash:true,//防止缓存
             minify:{
                 removeAttributeQuotes:true//压缩 去掉引号
@@ -145,8 +147,11 @@ module.exports = {
             threadPool: happyThreadPool
         }),
         new webpack.DllReferencePlugin({
-            manifest: require(path.join(__dirname, 'dist', 'manifest.json')),
+            manifest: require(path.join(__dirname, 'dist', 'manifest.json'))
         }),
         new ModuleConcatenationPlugin(), //开启作用域提升
+        new ProgressBarPlugin({
+            format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'
+        })
     ]
 }

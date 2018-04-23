@@ -13,8 +13,9 @@ module.exports = {
     // manifest是描述文件
     plugins: [
         new webpack.DllPlugin({
-        name: '_dll_[name]',
-        path: path.join(__dirname, 'dist', 'manifest.json')
+            name: '_dll_[name]',
+            path: path.join(__dirname, 'dist', 'manifest.json'),
+            context: __dirname
         })
     ]
 }
