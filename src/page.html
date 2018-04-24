@@ -13,6 +13,8 @@
     <div class="example">
         EXAMPLE_PAGE
     </div>
-    <script src="<%= htmlWebpackPlugin.options.vendor %>"></script>
+    <% if(process.env.NODE_ENV === 'development') {%>    
+        <script src="<%= htmlWebpackPlugin.options.vendor %>"></script>
+    <% } %>
 </body>
 </html>

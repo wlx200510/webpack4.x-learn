@@ -1,12 +1,17 @@
 const path = require('path')
 const webpack = require('webpack')
 
+function resolve (dir) {
+    return path.join(__dirname, '..', dir)
+}
+
 module.exports = {
+    context: path.resolve(__dirname, '../'),
     entry: {
         vendor: ['jquery', 'lodash']
     },
     output: {
-        path: path.join(__dirname, 'dist'),
+        path: resolve('dist'),
         filename: '[name].dll.js',
         library: '_dll_[name]' // 全局变量名，其他模块会从此变量上获取里面模块
     },
@@ -14,7 +19,7 @@ module.exports = {
     plugins: [
         new webpack.DllPlugin({
             name: '_dll_[name]',
-            path: path.join(__dirname, 'dist', 'manifest.json'),
+            path: resolve('dist/manifest.json'),
             context: __dirname
         })
     ]

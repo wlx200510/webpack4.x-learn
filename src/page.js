@@ -1,5 +1,6 @@
 "use strict"
-import './page.scss'
+// import './page.scss'
+require('./page.scss')
 import $ from 'jquery'
 import _ from 'lodash'
 window.onload = function() {

@@ -4,4 +4,18 @@ body {
         color: #ffffff;
         font-size: 20px;
     }
+    /* 下面用于css的treeShaking是不是管用*/ 
+    .useless{
+        background-color: #000000;
+        color: #ff0000;
+    }
+    /* 下面用于css的路径转换是不是管用*/ 
+    .test-image{
+        background-image: url('./assets/webpack.png');
+        background-repeat: no-repeat;
+        background-size: 300px;
+        width: 300px;
+        height: 300px;
+        margin: 0 auto;
+    }
 }

@@ -141,7 +141,7 @@ module.exports = {
         new webpack.ProvidePlugin({
             _:'lodash' //所有页面都会引入 _ 这个变量，不用再import引入
         }),
-        new ExtractTextWebapckPlugin('css/[name].[hash].css'),
+        new ExtractTextWebapckPlugin('css/[name].[hash].css'), // 其实这个特性只用于打包生产环境，测试环境这样设置会影响HMR
         new CopyWebpackPlugin([
             {
                 from: path.resolve(__dirname, 'static'),
@@ -192,13 +192,14 @@ PS: 关于`loader`的详细说明可以参考`webpack3.x`的学习介绍，上�
 
 包含以下几个方面：
 1. 针对`CSS`和`JS`的`TreeShaking`来减少无用代码，针对`JS`需要对已有的`uglifyjs`进行一些自定义的配置(生产环境配置)
-2. 新的公共代码抽取工具(`optimization.SplitChunksPlugin`)提取重用代码，减小打包文件。（代替`commonchunkplugin`）
-3. 使用`HappyPack`进行`javascript`的多进程打包操作，提升打包速度，并增加打包时间显示
-4. 创建一个`webpack.dll.config.js`文件打包常用类库到dll中，使得基础模块不会重复被打包，而是去动态连接库里获取，代替上一节使用的`vendor`。(`webpack4.x`新特性)
-5. 加入作用域提升(前一版本的特性)和模块热替换，后者需要在项目中增加一些配置，不过大型框架把这块都封装好了。(开发环境配置)
+2. 新的公共代码抽取工具(`optimization.SplitChunksPlugin`)提取重用代码，减小打包文件。（代替`commonchunkplugin`，生产和开发环境都需要）
+3. 使用`HappyPack`进行`javascript`的多进程打包操作，提升打包速度，并增加打包时间显示。(生产和开发环境都需要)
+4. 创建一个`webpack.dll.config.js`文件打包常用类库到dll中，使得开发过程中基础模块不会重复打包，而是去动态连接库里获取，代替上一节使用的`vendor`。(注意这个是在开发环境使用，生产环境打包对时间要求并不高，后者往往是项目持续集成的一部分)
+5. 模块热替换，还需要在项目中增加一些配置，不过大型框架把这块都封装好了。(开发环境配置)
+6. `webpack3`新增的作用域提升会默认在`production`模式下启用，不用特别配置，但只有在使用ES6模块才能生效。
 
 关于第四点，需要在package.json中的script中增加脚本:
-`"build:dll": "webpack --config webpack.dll.config.js --mode production",`
+`"build:dll": "webpack --config webpack.dll.config.js --mode development",`
 
 补充安装插件的命令行：
 
@@ -207,9 +208,17 @@ npm i purify-css purifycss-webpack -D // 用于css的tree-shaking
 npm i webpack-parallel-uglify-plugin -D // 用于js的tree-shaking
 npm i happypack@next -D //用于多进程打包js
 npm i progress-bar-webpack-plugin -D //用于显示打包时间和进程
+npm i webpack-merge -D //优化配置代码的工具
+npm i optimize-css-assets-webpack-plugin -D //压缩CSS
+npm i chalk -D
+npm install css-hot-loader -D // css热更新
 ```
 
-`TreeShaking`需要增加的配置代码:
+`TreeShaking`需要增加的配置代码，这一块参考[`webpack`文档](https://webpack.js.org/guides/tree-shaking/)，需要三方面因素，分别是:
+
+- 使用`ES6`模块(`import/export`)
+- 在`package.json`文件中声明`sideEffects`指定可以`treeShaking`的模块
+- 启用`UglifyJSPlugin`，多入口下用`WebpackParallelUglifyPlugin`(这是下面的配置代码做的事情)
 
 ```javascript
 /*最上面要增加的声明变量*/
@@ -234,10 +243,21 @@ new WebpackParallelUglifyPlugin({
             reduce_vars: true // 提取出出现多次但是没有定义成变量去引用的静态值
         }
     }
+    // 有兴趣可以探究一下使用uglifyES
 }),
 ```
 
-打包`DLL`第三方类库的配置项：
+关于`ES6`模块这个事情，上文的第六点也提到了只有`ES6`模块写法才能用上最新的作用域提升的特性，首先`webpack4.x`并不需要额外修改`babelrc`的配置来实现去除无用代码，这是从`webpack2.x`升级后支持的，改用`sideEffect`声明来实现。但作用域提升仍然需要把`babel`配置中的`module`转换去掉，修改后的`.babelrc`代码如下：
+
+```json
+{
+  "presets": [["env", {"loose": true, "modules": false}], "stage-0"]
+}
+```
+
+但这个时候会发现`import`引入样式文件就被去掉了……只能使用`require`来改写了。
+
+打包`DLL`第三方类库的配置项，用于开发环境：
 
 1. `webpack.dll.config.js`配置文件具体内容：
 
@@ -272,7 +292,7 @@ module.exports = {
 ```javascript
 /*找到上一步生成的`manifest.json`文件配置到`plugins`里面*/
 new webpack.DllReferencePlugin({
-    manifest: require(path.join(__dirname, 'dist', 'manifest.json')),
+    manifest: require(path.join(__dirname, '..', 'dist', 'manifest.json')),
 }),
 ```
 
@@ -299,6 +319,7 @@ new HtmlWebpackPlugin({
     template: path.resolve(__dirname,'src','index.html'),
     filename:'index.html',
     chunks:['index', 'common'],
+    vendor: './vendor.dll.js', //与dll配置文件中output.fileName对齐
     hash:true,//防止缓存
     minify:{
         removeAttributeQuotes:true//压缩 去掉引号
@@ -308,12 +329,15 @@ new HtmlWebpackPlugin({
     template: path.resolve(__dirname,'src','page.html'),
     filename:'page.html',
     chunks:['page', 'common'],
+    vendor: './vendor.dll.js', //与dll配置文件中output.fileName对齐
     hash:true,//防止缓存
     minify:{
         removeAttributeQuotes:true//压缩 去掉引号
     }
 }),
 ```
+
+PS: 这一块要多注意，对应入口的`HTML`文件也要处理，关键是自定义的`vendor`项，在开发环境中引入到`html`中
 
 `HappyPack`的多进程打包处理：
 
@@ -343,19 +367,20 @@ new ProgressBarPlugin({
 })
 ```
 
-要记住这种使用方法下一定要在根目录下加`.babelrc`文件来设置`babel`的打包配置
+PS:要记住这种使用方法下一定要在根目录下加`.babelrc`文件来设置`babel`的打包配置。
 
-作用域提升和热跟新增加的配置：
+开发环境的代码热更新：
+其实针对热刷新，还有两个方面要提及，一个是html文件里面写代码的热跟新(这个对于框架不需要，如果要实现，建议使用`glup`,后面有代码)，一个是写的样式代码的热更新，这两部分也要加进去。让我们一起看看热更新需要增加的配置代码：
 
 ```javascript
-/*最上面要增加的声明变量(作用域提升)*/
-const ModuleConcatenationPlugin = require('webpack/lib/optimize/ModuleConcatenationPlugin');
-
 /*在`devServer`配置项中需增加的设置*/
 hot:true
 
+/*在样式的`loader`配置项中需增加的设置，实现css热更新*/
+use: ['style-loader', 'css-hot-loader', 'css-loader', 'postcss-loader', 'sass-loader']
+
+
 /*在`plugins`配置项中需要增加的插件设置*/
-new ModuleConcatenationPlugin(), //开启作用域提升
 new webpack.HotModuleReplacementPlugin(), //模块热更新
 new webpack.NamedModulesPlugin(), //模块热更新
 ```
@@ -370,7 +395,56 @@ if(module.hot) { //设置消息监听，重新执行函数
 }
 ```
 
-`webpack.config.js`配置文件(开发环境 + 生产环境)具体内容，但用于实际项目中建议针对生产环境和开发环境分开两个文件，配置更加清楚：
+但还是不能实现在`html`修改后自动刷新页面，这里有个概念是热更新不是针对页面级别的修改，所以要另外想办法，我感觉使用自包含`html`文件的方式不妥，建议通过`gulp`插件的监听`html`文件改动来实现，在根目录增加一个`gulpfile.js`文件来实现这一逻辑，同时安装上所需的工具：
+
+```javascript
+var gulp = require('gulp');
+var spawn = require('child_process').spawn;
+var livereload = require('gulp-livereload');
+
+
+gulp.task('server', function(){
+    'use strict';
+    spawn('webpack-dev-server', ['--config', 'build/webpack.dev.config.js', '--mode', 'development'])
+})
+
+gulp.task('watch', function(){
+    livereload.listen();
+    gulp.watch('src/*.html', function(){
+        gulp.src('src/*.html').pipe(livereload())
+    });//监听html变化
+})
+
+gulp.task('default', ['server', 'watch'])
+```
+
+额外再增加一个压缩`css`的插件，看官方文档，样式文件压缩没有内置的，所以暂时引用第三方插件来做。
+
+```js
+/*要增加的声明变量*/
+const OptimizeCSSPlugin = require('optimize-css-assets-webpack-plugin')
+
+/*在`plugins`配置项中需要增加的插件设置*/
+new OptimizeCSSPlugin({
+    cssProcessorOptions: {safe: true}
+})
+```
+
+### 最终成果
+
+　　在进阶部分我们对`webpack`配置文件根据开发环境和生产环境的不同做了分别的配置，因此有必要分成两个文件，然后发现重复的配置代码很多，作为有代码洁癖的人不能忍，果断引入`webpack-merge`，来把相同的配置抽出来，放到`build/webpack.base.js`中，而后在`build/webpack.dev.config.js`(开发环境)和`build/webpack.prod.config.js`(生产环境)中分别引用，在这个过程中也要更改之前文件的路径设置，以免打包或者找文件的路径出错，同时将`package.json`中的脚本命令修改为:
+
+```json
+"scripts": {
+    "build": "webpack --config build/webpack.prod.config.js --mode production",
+    "dev": "webpack-dev-server --open --mode development --config build/webpack.dev.config.js",
+    "dev:dll": "webpack --config build/webpack.dll.config.js --mode development",
+    "start": "npm run dev:dll && npm run dev"
+}
+```
+
+接下来就是代码的重构过程，这个过程其实我建议大家自己动手做一做，就能对`webpack`配置文件结构更加清晰。
+
 
 ```js
 const path = require('path');
@@ -548,8 +622,6 @@ module.exports = {
 }
 ```
 
-
-
 多说一句，就是实现JS打包的`treeShaking`还有一种方法是编译期分析依赖，利用uglifyjs来完成，这种情况需要保留ES6模块才能实现，因此在使用这一特性的仓库中，`.babelrc`文件的配置为:`"presets": [["env", { "modules": false }], "stage-0"]`，就是打包的时候不要转换模块引入方式的含义。
 
-接下来就可以运行`npm run build:dll && npm run dev`，看一下进阶配置后的成果啦，吼吼。
+接下来就可以运行`npm start`，看一下进阶配置后的成果啦，吼吼，之后只要不进行`build`打包操作，通过`npm run dev`启动，不用重复打包`vendor`啦
