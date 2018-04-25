@@ -1,3 +1,5 @@
+![](./static/webpack.png)
+
 ## 学习webpack4的配置更改
 
 > webpack作为一个模块打包器，主要用于前端工程中的依赖梳理和模块打包，将我们开发的具有高可读性和可维护性的代码文件打包成浏览器可以识别并正常运行的压缩代码，主要包括样式文件处理成`css`，各种新式的`JavaScript`转换成浏览器认识的写法等，也是前端工程师进阶的不二法门。
@@ -706,4 +708,4 @@ module.exports = merge(baseConfig, {
 
 接下来就可以运行`npm start`，看一下进阶配置后的成果啦，吼吼，之后只要不进行`build`打包操作，通过`npm run dev`启动，不用重复打包`vendor`啦。生产环境打包使用的是`npm run build`。
 
-以上就是对`webpack4.x`配置的踩坑过程，期间参考了大量谷歌英文资料，希望能帮助大家更好地掌握`wepback`最新版本的配置，以上内容亲测跑通，有问题的话，欢迎加我微信(kashao3824)讨论，到`github`地址提`issue`也可，欢迎`fork/star`。
+以上就是对`webpack4.x`配置的踩坑过程，期间参考了大量谷歌英文资料，希望能帮助大家更好地掌握`wepback`最新版本的配置，以上内容亲测跑通，有问题的话，欢迎加我微信(kashao3824)讨论，到[`github`地址](https://github.com/wlx200510/webpack4.x-learn)提`issue`也可，欢迎`fork/star`。
