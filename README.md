@@ -706,3 +706,4 @@ module.exports = merge(baseConfig, {
 
 接下来就可以运行`npm start`，看一下进阶配置后的成果啦，吼吼，之后只要不进行`build`打包操作，通过`npm run dev`启动，不用重复打包`vendor`啦。生产环境打包使用的是`npm run build`。
 
+以上就是对`webpack4.x`配置的踩坑过程，期间参考了大量谷歌英文资料，希望能帮助大家更好地掌握`wepback`最新版本的配置，以上内容亲测跑通，有问题的话，欢迎加我微信(kashao3824)讨论，到`github`地址提`issue`也可，欢迎`fork/star`。
