@@ -11,8 +11,7 @@
     "build": "webpack --config build/webpack.prod.config.js --mode production",
     "dev": "webpack-dev-server --open --config build/webpack.dev.config.js --mode development",
     "dev:dll": "webpack --config build/webpack.dll.config.js --mode development",
-    "start": "npm run dev:dll && gulp server",
-    "watch": "gulp watch"
+    "start": "npm run dev:dll && npm run dev"
   },
   "keywords": [
     "webpack4",
@@ -31,10 +30,9 @@
     "css-loader": "^0.28.11",
     "extract-text-webpack-plugin": "^4.0.0-beta.0",
     "file-loader": "^1.1.11",
-    "gulp": "^3.9.1",
-    "gulp-livereload": "^3.8.1",
     "happypack": "^5.0.0-beta.3",
     "html-webpack-plugin": "^3.2.0",
+    "mini-css-extract-plugin": "^0.4.0",
     "node-sass": "^4.8.3",
     "optimize-css-assets-webpack-plugin": "^4.0.0",
     "postcss-loader": "^2.1.4",

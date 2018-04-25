@@ -4,7 +4,7 @@ import _ from 'lodash'
 window.onload = function() {
     var text = document.getElementsByClassName('content-div')
     console.log(text.length)
-    console.log(text[0].innerHTML)
-    var contentTest = _.repeat('karl ', 4)
+    console.log(text[0].innerHTML, '1')
+    var contentTest = _.repeat('karl ', 2)
     console.log(contentTest)
 }

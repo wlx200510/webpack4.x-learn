@@ -8,6 +8,8 @@ const HappyPack = require('happypack')
 const os = require('os')
 const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
 
+const MiniCssExtractPlugin = require('mini-css-extract-plugin') //CSS文件单独提取出来
+
 function resolve (dir) {
   return path.join(__dirname, '..', dir)
 }
@@ -39,6 +41,24 @@ module.exports = {
   module: {
     // 多个loader是有顺序要求的，从右往左写，因为转换的时候是从右往左转换的
     rules:[
+      {
+        test: /\.css$/,
+        use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader'],
+        include: [resolve('src')], //限制范围，提高打包速度
+        exclude: /node_modules/
+      },
+      {
+        test:/\.less$/,
+        use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader', 'less-loader'],
+        include: [resolve('src')],
+        exclude: /node_modules/
+      },
+      {
+        test:/\.scss$/,
+        use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader', 'sass-loader'],
+        include: [resolve('src')],
+        exclude: /node_modules/
+      },
       {
           test: /\.jsx?$/,
           loader: 'happypack/loader?id=happy-babel-js',
@@ -92,6 +112,10 @@ module.exports = {
       id: 'happy-babel-js',
       loaders: ['babel-loader?cacheDirectory=true'],
       threadPool: happyThreadPool
+    }),
+    new MiniCssExtractPlugin({
+      filename: "[name].css",
+      chunkFilename: "[id].css"
     }),
     new ProgressBarPlugin({
       format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'

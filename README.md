@@ -212,6 +212,7 @@ npm i webpack-merge -D //优化配置代码的工具
 npm i optimize-css-assets-webpack-plugin -D //压缩CSS
 npm i chalk -D
 npm install css-hot-loader -D // css热更新
+npm i mini-css-extract-plugin -D
 ```
 
 `TreeShaking`需要增加的配置代码，这一块参考[`webpack`文档](https://webpack.js.org/guides/tree-shaking/)，需要三方面因素，分别是:
@@ -376,10 +377,6 @@ PS:要记住这种使用方法下一定要在根目录下加`.babelrc`文件来�
 /*在`devServer`配置项中需增加的设置*/
 hot:true
 
-/*在样式的`loader`配置项中需增加的设置，实现css热更新*/
-use: ['style-loader', 'css-hot-loader', 'css-loader', 'postcss-loader', 'sass-loader']
-
-
 /*在`plugins`配置项中需要增加的插件设置*/
 new webpack.HotModuleReplacementPlugin(), //模块热更新
 new webpack.NamedModulesPlugin(), //模块热更新
@@ -395,30 +392,28 @@ if(module.hot) { //设置消息监听，重新执行函数
 }
 ```
 
-但还是不能实现在`html`修改后自动刷新页面，这里有个概念是热更新不是针对页面级别的修改，所以要另外想办法，我感觉使用自包含`html`文件的方式不妥，建议通过`gulp`插件的监听`html`文件改动来实现，在根目录增加一个`gulpfile.js`文件来实现这一逻辑，同时安装上所需的工具：
+但还是不能实现在`html`修改后自动刷新页面，这里有个概念是热更新不是针对页面级别的修改，这个问题有一些解决方法，但目前都不是很完美，可以参考[这里](https://stackoverflow.com/questions/33183931/how-to-watch-index-html-using-webpack-dev-server-and-html-webpack-plugin)，现在针对CSS的热重载有一套解决方案如下，需要放弃使用上文提到的`ExtractTextWebapckPlugin`，引入`mini-css-extract-plugin`和`hot-css-loader`来实现，前者在webpack4.x上与`hot-css-loader`有报错，让我们改造一番：
 
 ```javascript
-var gulp = require('gulp');
-var spawn = require('child_process').spawn;
-var livereload = require('gulp-livereload');
+/*最上面要增加的声明变量*/
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 
+/*在样式的`loader`配置项中需增加的设置，实现css热更新，以css为例，其他可以参照我的仓库来写*/
+{
+    test: /\.css$/,
+    use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader'],
+    include: [resolve('src')], //限制范围，提高打包速度
+    exclude: /node_modules/
+}
 
-gulp.task('server', function(){
-    'use strict';
-    spawn('webpack-dev-server', ['--config', 'build/webpack.dev.config.js', '--mode', 'development'])
+/*在`plugins`配置项中需要增加的插件设置，注意这里不能写[hash]，否则无法实现热跟新，如果有hash需要，可以开发环境和生产环境分开配置*/
+new MiniCssExtractPlugin({
+    filename: "[name].css",
+    chunkFilename: "[id].css"
 })
-
-gulp.task('watch', function(){
-    livereload.listen();
-    gulp.watch('src/*.html', function(){
-        gulp.src('src/*.html').pipe(livereload())
-    });//监听html变化
-})
-
-gulp.task('default', ['server', 'watch'])
 ```
 
-额外再增加一个压缩`css`的插件，看官方文档，样式文件压缩没有内置的，所以暂时引用第三方插件来做。
+用于生产环境压缩`css`的插件，看官方文档说明，样式文件压缩没有内置的，所以暂时引用第三方插件来做，以下是配置示例。
 
 ```js
 /*要增加的声明变量*/
@@ -445,107 +440,216 @@ new OptimizeCSSPlugin({
 
 接下来就是代码的重构过程，这个过程其实我建议大家自己动手做一做，就能对`webpack`配置文件结构更加清晰。
 
+`build`文件夹下的`webpack.base.js`文件：
 
 ```js
+'use strict'
 const path = require('path');
 const chalk = require('chalk');
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
+const HappyPack = require('happypack')
+const os = require('os')
+const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+function resolve (dir) {
+  return path.join(__dirname, '..', dir)
+}
+
+function assetsPath(_path_) {
+  let assetsSubDirectory;
+  if (process.env.NODE_ENV === 'production') {
+    assetsSubDirectory = 'static' //可根据实际情况修改
+  } else {
+    assetsSubDirectory = 'static'
+  }
+  return path.posix.join(assetsSubDirectory, _path_)
+}
+
+module.exports = {
+  context: path.resolve(__dirname, '../'),
+  entry: {
+    index: './src/index.js',
+    page: './src/page.js'
+  },
+  output:{
+    path: resolve('dist'),
+    filename:'[name].[hash].js'
+  },
+  resolve: {
+    extensions: [".js",".css",".json"],
+    alias: {} //配置别名可以加快webpack查找模块的速度
+  },
+  module: {
+    // 多个loader是有顺序要求的，从右往左写，因为转换的时候是从右往左转换的
+    rules:[
+      {
+        test: /\.css$/,
+        use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader'],
+        include: [resolve('src')], //限制范围，提高打包速度
+        exclude: /node_modules/
+      },
+      {
+        test:/\.less$/,
+        use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader', 'less-loader'],
+        include: [resolve('src')],
+        exclude: /node_modules/
+      },
+      {
+        test:/\.scss$/,
+        use: ['css-hot-loader', MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader', 'sass-loader'],
+        include: [resolve('src')],
+        exclude: /node_modules/
+      },
+      {
+          test: /\.jsx?$/,
+          loader: 'happypack/loader?id=happy-babel-js',
+          include: [resolve('src')],
+          exclude: /node_modules/,
+      },
+      { //file-loader 解决css等文件中引入图片路径的问题
+      // url-loader 当图片较小的时候会把图片BASE64编码，大于limit参数的时候还是使用file-loader 进行拷贝
+        test: /\.(png|jpg|jpeg|gif|svg)/,
+        use: {
+          loader: 'url-loader',
+          options: {
+            name: assetsPath('images/[name].[hash:7].[ext]'), // 图片输出的路径
+            limit: 1 * 1024
+          }
+        }
+      },
+      {
+        test: /\.(mp4|webm|ogg|mp3|wav|flac|aac)(\?.*)?$/,
+        loader: 'url-loader',
+        options: {
+          limit: 10000,
+          name: assetsPath('media/[name].[hash:7].[ext]')
+        }
+      },
+      {
+        test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/,
+        loader: 'url-loader',
+        options: {
+          limit: 10000,
+          name: assetsPath('fonts/[name].[hash:7].[ext]')
+        }
+      }
+    ]
+  },
+  optimization: { //webpack4.x的最新优化配置项，用于提取公共代码
+    splitChunks: {
+      cacheGroups: {
+        commons: {
+          chunks: "initial",
+          name: "common",
+          minChunks: 2,
+          maxInitialRequests: 5, // The default limit is too small to showcase the effect
+          minSize: 0 // This is example is too small to create commons chunks
+        }
+      }
+    }
+  },
+  plugins: [
+    new HappyPack({
+      id: 'happy-babel-js',
+      loaders: ['babel-loader?cacheDirectory=true'],
+      threadPool: happyThreadPool
+    }),
+    new MiniCssExtractPlugin({
+      filename: "[name].css",
+      chunkFilename: "[id].css"
+    }),
+    new ProgressBarPlugin({
+      format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'
+    }),
+  ]
+}
+```
+
+`webpack.dev.config.js`文件内容：
+
+```javascript
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin') // 生成html的插件
+const webpack = require('webpack')
+const baseConfig = require('./webpack.base')
+const merge = require('webpack-merge')
+
+const devWebpackConfig = merge(baseConfig, {
+  output:{
+    publicPath: '/'
+  },
+  devtool: 'eval-source-map', // 指定加source-map的方式
+  devServer: {
+    inline:true,//打包后加入一个websocket客户端
+    hot:true,//热加载
+    contentBase: path.join(__dirname, "..", "dist"), //静态文件根目录
+    port: 3824, // 端口
+    host: 'localhost',
+    overlay: true,
+    compress: false // 服务器返回浏览器的时候是否启动gzip压缩
+  },
+  watchOptions: {
+      ignored: /node_modules/, //忽略不用监听变更的目录
+      aggregateTimeout: 500, //防止重复保存频繁重新编译,500毫米内重复保存不打包
+      poll:1000 //每秒询问的文件变更的次数
+  },
+  plugins: [
+    // 多入口的html文件用chunks这个参数来区分
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, '..', 'src','index.html'),
+      filename:'index.html',
+      chunks:['index', 'common'],
+      vendor: './vendor.dll.js', //与dll配置文件中output.fileName对齐
+      hash:true,//防止缓存
+      minify:{
+          removeAttributeQuotes:true//压缩 去掉引号
+      }
+    }),
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, '..', 'src','page.html'),
+      filename:'page.html',
+      chunks:['page', 'common'],
+      vendor: './vendor.dll.js', //与dll配置文件中output.fileName对齐
+      hash:true,//防止缓存
+      minify:{
+          removeAttributeQuotes:true//压缩 去掉引号
+      }
+    }),
+    new webpack.DllReferencePlugin({
+      manifest: path.resolve(__dirname, '..', 'dist', 'manifest.json')
+    }),
+    new webpack.HotModuleReplacementPlugin(), //HMR
+    new webpack.NamedModulesPlugin() // HMR
+  ]
+})
+
+module.exports = devWebpackConfig
+```
+
+`webpack.dev.config.js`文件内容：
+
+```javascript
+'use strict'
+const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin') // 复制静态资源的插件
 const CleanWebpackPlugin = require('clean-webpack-plugin') // 清空打包目录的插件
 const HtmlWebpackPlugin = require('html-webpack-plugin') // 生成html的插件
-const ExtractTextWebapckPlugin = require('extract-text-webpack-plugin') //CSS文件单独提取出来
 const webpack = require('webpack')
+const baseConfig = require('./webpack.base')
+const merge = require('webpack-merge')
 
 const glob = require('glob')
 const PurifyCSSPlugin = require('purifycss-webpack')
 const WebpackParallelUglifyPlugin = require('webpack-parallel-uglify-plugin')
+const OptimizeCSSPlugin = require('optimize-css-assets-webpack-plugin')
 
-const HappyPack = require('happypack')
-const os = require('os')
-const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
-const ProgressBarPlugin = require('progress-bar-webpack-plugin')
-
-const ModuleConcatenationPlugin = require('webpack/lib/optimize/ModuleConcatenationPlugin');
-
-module.exports = {
-    entry: {
-        index: path.resolve(__dirname, 'src', 'index.js'),
-        page: path.resolve(__dirname, 'src', 'page.js')
-    },
+module.exports = merge(baseConfig, {
     output:{
-        publicPath: '/', //这里要放的是静态资源CDN的地址
-        path: path.resolve(__dirname,'dist'),
-        filename:'[name].[hash].js'
-    },
-    resolve:{
-        extensions: [".js",".css",".json"],
-        alias: {} //配置别名可以加快webpack查找模块的速度
-    },
-    module: {
-        // 多个loader是有顺序要求的，从右往左写，因为转换的时候是从右往左转换的
-        rules:[
-            {
-                test: /\.css$/,
-                use: ExtractTextWebapckPlugin.extract({
-                    fallback: 'style-loader',
-                    use: ['css-loader', 'postcss-loader'] // 不再需要style-loader放到html文件内
-                }),
-                include: path.join(__dirname, 'src'), //限制范围，提高打包速度
-                exclude: /node_modules/
-            },
-            {
-                test:/\.less$/,
-                use: ExtractTextWebapckPlugin.extract({
-                    fallback: 'style-loader',
-                    use: ['css-loader', 'postcss-loader', 'less-loader']
-                }),
-                include: path.join(__dirname, 'src'),
-                exclude: /node_modules/
-            },
-            {
-                test:/\.scss$/,
-                use: ExtractTextWebapckPlugin.extract({
-                    fallback: 'style-loader',
-                    use:['css-loader', 'postcss-loader', 'sass-loader']
-                }),
-                include: path.join(__dirname, 'src'),
-                exclude: /node_modules/
-            },
-            {
-                test: /\.jsx?$/,
-                loader: 'happypack/loader?id=happy-babel-js',
-                include: [path.resolve('src')],
-                exclude: /node_modules/,
-            },
-            { //file-loader 解决css等文件中引入图片路径的问题
-            // url-loader 当图片较小的时候会把图片BASE64编码，大于limit参数的时候还是使用file-loader 进行拷贝
-                test: /\.(png|jpg|jpeg|gif|svg)/,
-                use: {
-                  loader: 'url-loader',
-                  options: {
-                    outputPath: 'images/', // 图片输出的路径
-                    limit: 1 * 1024
-                  }
-                }
-            }
-        ]
-    },
-    optimization: { //webpack4.x的最新优化配置项，用于提取公共代码
-        splitChunks: {
-            cacheGroups: {
-                commons: {
-                    chunks: "initial",
-                    name: "common",
-                    minChunks: 2,
-                    maxInitialRequests: 5, // The default limit is too small to showcase the effect
-                    minSize: 0 // This is example is too small to create commons chunks
-                }
-            }
-        }
+        publicPath: './' //这里要放的是静态资源CDN的地址(只在生产环境下配置)
     },
     plugins: [
-        // 多入口的html文件用chunks这个参数来区分
         new HtmlWebpackPlugin({
-            template: path.resolve(__dirname,'src','index.html'),
+            template: path.resolve(__dirname, '..', 'src', 'index.html'),
             filename:'index.html',
             chunks:['index', 'common'],
             hash:true,//防止缓存
@@ -554,7 +658,7 @@ module.exports = {
             }
         }),
         new HtmlWebpackPlugin({
-            template: path.resolve(__dirname,'src','page.html'),
+            template: path.resolve(__dirname, '..', 'src', 'page.html'),
             filename:'page.html',
             chunks:['page', 'common'],
             hash:true,//防止缓存
@@ -562,17 +666,23 @@ module.exports = {
                 removeAttributeQuotes:true//压缩 去掉引号
             }
         }),
-        new ExtractTextWebapckPlugin('css/[name].[hash].css'),
         new CopyWebpackPlugin([
             {
-                from: path.resolve(__dirname, 'static'),
-                to: path.resolve(__dirname, 'dist/static'),
+                from: path.join(__dirname, '..', 'static'),
+                to: path.join(__dirname,  '..', 'dist', 'static'),
                 ignore: ['.*']
             }
         ]),
-        new CleanWebpackPlugin([path.join(__dirname, 'dist')]), //!!注意 这个后面在development中要删除！！
+        new CleanWebpackPlugin(['dist'], {
+            root: path.join(__dirname, '..'),
+            verbose: true,
+            dry:  false
+        }),
+        new OptimizeCSSPlugin({
+            cssProcessorOptions: {safe: true}
+        }),
         new PurifyCSSPlugin({
-            paths: glob.sync(path.join(__dirname, 'src/*.html'))
+            paths: glob.sync(path.join(__dirname, '../src/*.html'))
         }),
         new WebpackParallelUglifyPlugin({
             uglifyJS: {
@@ -588,40 +698,11 @@ module.exports = {
                 }
             }
         }),
-        new HappyPack({ //开启多线程打包
-            id: 'happy-babel-js',
-            loaders: ['babel-loader?cacheDirectory=true'],
-            threadPool: happyThreadPool
-        }),
-        new webpack.DllReferencePlugin({
-            manifest: require(path.join(__dirname, 'dist', 'manifest.json')),
-        }),
-        new ModuleConcatenationPlugin(), //开启作用域提升
-        new webpack.HotModuleReplacementPlugin(), //HMR
-        new webpack.NamedModulesPlugin(), // HMR
-        new ProgressBarPlugin({
-            format: '  build [:bar] ' + chalk.green.bold(':percent') + ' (:elapsed seconds)'
-        })
     ]
-    devtool: 'eval-source-map', // 指定加source-map的方式
-    devServer: {
-        inline:true,//打包后加入一个websocket客户端
-        hot:true,//热加载
-        contentBase: path.join(__dirname, "dist"), //静态文件根目录
-        port: 3824, // 端口
-        host: 'localhost',
-        overlay: true,
-        compress: false // 服务器返回浏览器的时候是否启动gzip压缩
-    },
-    watch: true, // 开启监听文件更改，自动刷新
-    watchOptions: {
-        ignored: /node_modules/, //忽略不用监听变更的目录
-        aggregateTimeout: 500, //防止重复保存频繁重新编译,500毫米内重复保存不打包
-        poll:1000 //每秒询问的文件变更的次数
-    },
-}
+})
 ```
 
 多说一句，就是实现JS打包的`treeShaking`还有一种方法是编译期分析依赖，利用uglifyjs来完成，这种情况需要保留ES6模块才能实现，因此在使用这一特性的仓库中，`.babelrc`文件的配置为:`"presets": [["env", { "modules": false }], "stage-0"]`，就是打包的时候不要转换模块引入方式的含义。
 
-接下来就可以运行`npm start`，看一下进阶配置后的成果啦，吼吼，之后只要不进行`build`打包操作，通过`npm run dev`启动，不用重复打包`vendor`啦
+接下来就可以运行`npm start`，看一下进阶配置后的成果啦，吼吼，之后只要不进行`build`打包操作，通过`npm run dev`启动，不用重复打包`vendor`啦。生产环境打包使用的是`npm run build`。
+

@@ -1,7 +1,7 @@
 'use strict'
 
 const path = require('path');
-const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin') //CSS文件单独提取出来
+
 const CopyWebpackPlugin = require('copy-webpack-plugin') // 复制静态资源的插件
 const CleanWebpackPlugin = require('clean-webpack-plugin') // 清空打包目录的插件
 const HtmlWebpackPlugin = require('html-webpack-plugin') // 生成html的插件
@@ -14,44 +14,9 @@ const PurifyCSSPlugin = require('purifycss-webpack')
 const WebpackParallelUglifyPlugin = require('webpack-parallel-uglify-plugin')
 const OptimizeCSSPlugin = require('optimize-css-assets-webpack-plugin')
 
-function resolve (dir) {
-    return path.join(__dirname, '..', dir)
-}
-
 module.exports = merge(baseConfig, {
     output:{
         publicPath: './' //这里要放的是静态资源CDN的地址(一般只在生产环境下配置)
-    },
-    module: {
-        rules: [
-            {
-                test: /\.css$/,
-                use: ExtractTextWebpackPlugin.extract({
-                    fallback: 'style-loader',
-                    use: ['css-loader', 'postcss-loader'] // 不再需要style-loader放到html文件内
-                }),
-                include: [resolve('src')], //限制范围，提高打包速度
-                exclude: /node_modules/
-            },
-            {
-                test:/\.less$/,
-                use: ExtractTextWebpackPlugin.extract({
-                    fallback: 'style-loader',
-                    use: ['css-loader', 'postcss-loader', 'less-loader']
-                }),
-                include: [resolve('src')],
-                exclude: /node_modules/
-            },
-            {
-                test:/\.scss$/,
-                use: ExtractTextWebpackPlugin.extract({
-                    fallback: 'style-loader',
-                    use: ['css-loader', 'postcss-loader', 'sass-loader']
-                }),
-                include: [resolve('src')],
-                exclude: /node_modules/
-            }
-        ]
     },
     plugins: [
         new HtmlWebpackPlugin({
@@ -90,7 +55,6 @@ module.exports = merge(baseConfig, {
         new PurifyCSSPlugin({
             paths: glob.sync(path.join(__dirname, '../src/*.html'))
         }),
-        new ExtractTextWebpackPlugin('[name].[hash].css'),
         new WebpackParallelUglifyPlugin({
             uglifyJS: {
                 output: {

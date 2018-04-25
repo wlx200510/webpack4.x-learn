@@ -8,28 +8,6 @@ const devWebpackConfig = merge(baseConfig, {
   output:{
     publicPath: '/'
   },
-  module: {
-    rules:[
-      {
-        test: /\.css$/,
-        use: ['style-loader','css-hot-loader', 'css-loader', 'postcss-loader'],
-        include: [path.join(__dirname, '..', 'src/')], //限制范围，提高打包速度
-        exclude: /node_modules/
-      },
-      {
-          test:/\.less$/,
-          use: ['style-loader', 'css-hot-loader', 'css-loader', 'postcss-loader', 'less-loader'],
-          include: [path.join(__dirname, '..', 'src/')],
-          exclude: /node_modules/
-      },
-      {
-          test:/\.scss$/,
-          use: ['style-loader', 'css-hot-loader', 'css-loader', 'postcss-loader', 'sass-loader'],
-          include: [path.join(__dirname, '..', 'src/')],
-          exclude: /node_modules/
-      }
-    ]
-  },
   devtool: 'eval-source-map', // 指定加source-map的方式
   devServer: {
     inline:true,//打包后加入一个websocket客户端
