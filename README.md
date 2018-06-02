@@ -267,13 +267,15 @@ new WebpackParallelUglifyPlugin({
 ```js
 const path = require('path')
 const webpack = require('webpack')
+const pkg = require('../package.json')
 /**
  * 尽量减小搜索范围
  * target: '_dll_[name]' 指定导出变量名字
  */
 module.exports = {
+    context: path.resolve(__dirname, '../'),
     entry: {
-        vendor: ['jquery', 'lodash']
+        vendor: Object.keys(pkg.dependencies)
     },
     output: {
         path: path.join(__dirname, 'dist'),
@@ -284,7 +286,8 @@ module.exports = {
     plugins: [
         new webpack.DllPlugin({
             name: '_dll_[name]',
-            path: path.join(__dirname, 'dist', 'manifest.json')
+            path: path.join(__dirname, 'dist', 'manifest.json'),
+            context: path.resolve(__dirname, '../')
         })
     ]
 }
@@ -709,3 +712,9 @@ module.exports = merge(baseConfig, {
 接下来就可以运行`npm start`，看一下进阶配置后的成果啦，吼吼，之后只要不进行`build`打包操作，通过`npm run dev`启动，不用重复打包`vendor`啦。生产环境打包使用的是`npm run build`。
 
 以上就是对`webpack4.x`配置的踩坑过程，期间参考了大量谷歌英文资料，希望能帮助大家更好地掌握`wepback`最新版本的配置，以上内容亲测跑通，有问题的话，欢迎加我微信(kashao3824)讨论，到[`github`地址](https://github.com/wlx200510/webpack4.x-learn)提`issue`也可，欢迎`fork/star`。
+
+最新更改：
+
+- 修复了`common`会重复打包已有`dll`库的问题
+- 现在的`dll`库会自动根据`package.json`中的配置项生成
+- `dll`现在是生产环境打包模式，并且`vendor.dll.js`现在在生产环境下也会注入`HTML`模板中

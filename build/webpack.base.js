@@ -95,6 +95,7 @@ module.exports = {
     ]
   },
   optimization: { //webpack4.x的最新优化配置项，用于提取公共代码
+    
     splitChunks: {
       cacheGroups: {
         commons: {
@@ -102,7 +103,8 @@ module.exports = {
           name: "common",
           minChunks: 2,
           maxInitialRequests: 5, // The default limit is too small to showcase the effect
-          minSize: 0 // This is example is too small to create commons chunks
+          minSize: 0, // This is example is too small to create commons chunks
+          reuseExistingChunk: true // 可设置是否重用该chunk（查看源码没有发现默认值）
         }
       }
     }

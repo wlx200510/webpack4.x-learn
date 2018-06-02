@@ -10,7 +10,7 @@
   "scripts": {
     "build": "webpack --config build/webpack.prod.config.js --mode production",
     "dev": "webpack-dev-server --open --config build/webpack.dev.config.js --mode development",
-    "dev:dll": "webpack --config build/webpack.dll.config.js --mode development",
+    "dev:dll": "webpack --config build/webpack.dll.config.js --mode production",
     "start": "npm run dev:dll && npm run dev"
   },
   "keywords": [

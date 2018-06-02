@@ -1,5 +1,6 @@
 const path = require('path')
 const webpack = require('webpack')
+const pkg = require('../package.json')
 
 function resolve (dir) {
     return path.join(__dirname, '..', dir)
@@ -8,7 +9,7 @@ function resolve (dir) {
 module.exports = {
     context: path.resolve(__dirname, '../'),
     entry: {
-        vendor: ['jquery', 'lodash']
+        vendor: Object.keys(pkg.dependencies)
     },
     output: {
         path: resolve('dist'),
@@ -20,7 +21,7 @@ module.exports = {
         new webpack.DllPlugin({
             name: '_dll_[name]',
             path: resolve('dist/manifest.json'),
-            context: __dirname
+            context: path.resolve(__dirname, '../')
         })
     ]
 }

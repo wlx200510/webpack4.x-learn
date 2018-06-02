@@ -23,6 +23,7 @@ module.exports = merge(baseConfig, {
             template: path.resolve(__dirname, '..', 'src', 'index.html'),
             filename:'index.html',
             chunks:['index', 'common'],
+            vendor: './vendor.dll.js',
             hash:true,//防止缓存
             minify:{
                 removeAttributeQuotes:true//压缩 去掉引号
@@ -32,6 +33,7 @@ module.exports = merge(baseConfig, {
             template: path.resolve(__dirname, '..', 'src', 'page.html'),
             filename:'page.html',
             chunks:['page', 'common'],
+            vendor: './vendor.dll.js',
             hash:true,//防止缓存
             minify:{
                 removeAttributeQuotes:true//压缩 去掉引号
