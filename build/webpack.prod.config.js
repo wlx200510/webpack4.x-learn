@@ -48,6 +48,7 @@ module.exports = merge(baseConfig, {
         ]),
         new CleanWebpackPlugin(['dist'], {
             root: path.join(__dirname, '..'),
+            exclude: ['manifest.json', 'vendor.dll.js'],
             verbose: true,
             dry:  false
         }),
@@ -70,6 +71,9 @@ module.exports = merge(baseConfig, {
                     reduce_vars: true // 提取出出现多次但是没有定义成变量去引用的静态值
                 }
             }
+        }),
+        new webpack.DllReferencePlugin({
+            manifest: path.resolve(__dirname, '..', 'dist', 'manifest.json')
         }),
     ]
 })

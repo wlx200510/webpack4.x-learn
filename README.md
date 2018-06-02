@@ -718,3 +718,4 @@ module.exports = merge(baseConfig, {
 - 修复了`common`会重复打包已有`dll`库的问题
 - 现在的`dll`库会自动根据`package.json`中的配置项生成
 - `dll`现在是生产环境打包模式，并且`vendor.dll.js`现在在生产环境下也会注入`HTML`模板中
+- 生产环境打包使用命令`npm run prod`
