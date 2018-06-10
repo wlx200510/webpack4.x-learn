@@ -215,6 +215,7 @@ npm i optimize-css-assets-webpack-plugin -D //压缩CSS
 npm i chalk -D
 npm install css-hot-loader -D // css热更新
 npm i mini-css-extract-plugin -D
+npm i cross-env -D
 ```
 
 `TreeShaking`需要增加的配置代码，这一块参考[`webpack`文档](https://webpack.js.org/guides/tree-shaking/)，需要三方面因素，分别是:
@@ -436,10 +437,11 @@ new OptimizeCSSPlugin({
 
 ```json
 "scripts": {
-    "build": "webpack --config build/webpack.prod.config.js --mode production",
-    "dev": "webpack-dev-server --open --mode development --config build/webpack.dev.config.js",
-    "dev:dll": "webpack --config build/webpack.dll.config.js --mode development",
-    "start": "npm run dev:dll && npm run dev"
+    "build": "cross-env NODE_ENV='production' webpack --config build/webpack.prod.config.js --mode production",
+    "dev": "cross-env NODE_ENV='development' webpack-dev-server --open --config build/webpack.dev.config.js --mode development",
+    "dll": "webpack --config build/webpack.dll.config.js --mode production",
+    "start": "npm run dll && npm run dev",
+    "prod": "npm run dll && npm run build"
 }
 ```
 
@@ -462,7 +464,7 @@ function resolve (dir) {
 
 function assetsPath(_path_) {
   let assetsSubDirectory;
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') { // 这里需要用cross-env来注入Node变量
     assetsSubDirectory = 'static' //可根据实际情况修改
   } else {
     assetsSubDirectory = 'static'
@@ -719,3 +721,4 @@ module.exports = merge(baseConfig, {
 - 现在的`dll`库会自动根据`package.json`中的配置项生成
 - `dll`现在是生产环境打包模式，并且`vendor.dll.js`现在在生产环境下也会注入`HTML`模板中
 - 生产环境打包使用命令`npm run prod`
+- 修复了`process.env.NODE_ENV`在打包过程中取不到的问题 [issue2](https://github.com/wlx200510/webpack4.x-learn/issues/2)
