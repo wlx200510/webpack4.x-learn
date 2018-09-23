@@ -6,10 +6,17 @@ function resolve (dir) {
     return path.join(__dirname, '..', dir)
 }
 
+function filterTypes() {
+    var tpsReg = /^@types/i
+    return Object.keys(pkg.dependencies).filter((item) => {
+        return !tpsReg.test(item)
+    })
+}
+
 module.exports = {
     context: path.resolve(__dirname, '../'),
     entry: {
-        vendor: Object.keys(pkg.dependencies)
+        vendor: filterTypes()
     },
     output: {
         path: resolve('dist'),
