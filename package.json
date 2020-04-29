@@ -50,7 +50,7 @@
     "webpack-parallel-uglify-plugin": "^1.1.0"
   },
   "dependencies": {
-    "jquery": "^3.3.1",
+    "jquery": "^3.5.0",
     "lodash": "^4.17.5"
   }
 }
