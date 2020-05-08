@@ -95,6 +95,7 @@ module.exports = {
     ]
   },
   optimization: { //webpack4.x的最新优化配置项，用于提取公共代码
+    // 把 entry 里 index 和 page 下重复的代码放到 common 文件里
     
     splitChunks: {
       cacheGroups: {
